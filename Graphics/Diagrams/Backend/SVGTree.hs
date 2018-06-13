@@ -12,6 +12,7 @@ import Codec.Picture.Types (PixelRGBA8(..))
 import Graphics.Text.TrueType
 import Numeric (readHex)
 import Text.Regex.Posix ((=~))
+import Data.Bool (bool)
 import Data.List.Split (chunksOf)
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Map as M
@@ -201,7 +202,10 @@ svgBackend = Backend {..} where
       let contours = getStringCurveAtPoint dpi (0,0) [(font,pointSize,lab)]
           renderPair :: (Float,Float) -> V2 Double
           renderPair (x,y) = renderPoint $ (D.Point (realToFrac x) (negate (realToFrac y) - boxHeight)) + p
-      tell [S.Path textAttrs $
+          pivotAtLeft = True
+          angle = 0
+          rotatePoint = renderPair . V.head . head $ bool head last pivotAtLeft contours
+      tell [S.Path (textAttrs rotatePoint angle) $
               concat [[MoveTo OriginAbsolute [renderPair (V.head c)]
                       ,QuadraticBezier OriginAbsolute (mkPairs $ fmap renderPair (V.toList (V.tail c)))]
                      | c <- contour, not (V.null c)]
@@ -210,5 +214,8 @@ svgBackend = Backend {..} where
 
 
 -- DrawAttributes for text rendering
-textAttrs :: DrawAttributes
-textAttrs = mempty {S._fillColor = Last $ col $ Just "black"}
+textAttrs :: V2 Double -> Double -> DrawAttributes
+textAttrs (V2 x y) angle = mempty
+   {S._fillColor = Last . col $ Just "black"
+   ,_transform = Just [Rotate angle $ Just (x, y)]
+   }
